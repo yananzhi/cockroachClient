@@ -55,6 +55,7 @@ func getCmd(str string) (*cmd, error) {
 func runTxnKV(cmd *commander.Command, args []string) {
 	fmt.Printf("txn kv client:\n")
 	fmt.Printf("txn kv client:\n")
+	fmt.Printf("txn kv client:\n")
 	for {
 		reader := bufio.NewReader(os.Stdin)
 		strBytes, _, err := reader.ReadLine()
