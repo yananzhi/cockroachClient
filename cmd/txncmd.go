@@ -57,7 +57,7 @@ func InitHttpSender(addr string) *client.HTTPSender {
 
 func startCmd(c *cmd) error {
 	//for test
-	fmt.Printf("startcmd: %v\n", c)
+	//	fmt.Printf("startcmd: %v\n", c)
 
 	fmt.Println("start a transaction")
 
@@ -91,8 +91,6 @@ func genKey(userkey string) proto.Key {
 }
 
 func putCmd(c *cmd) error {
-	//for test
-	fmt.Printf("putcmd: %v\n", c)
 
 	if err := checkTxnExist(); err != nil {
 		fmt.Printf("%v", err)
@@ -114,8 +112,6 @@ func putCmd(c *cmd) error {
 }
 
 func getCmd(c *cmd) error {
-	//for test
-	fmt.Printf("getcmd: %v\n", c)
 
 	if err := checkTxnExist(); err != nil {
 		fmt.Printf("%v\n", err)
