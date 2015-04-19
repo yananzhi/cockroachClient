@@ -103,10 +103,13 @@ func putCmd(c *cmd) error {
 	}
 
 	key := genKey(c.args[0])
-	value := proto.Key([]byte(c.args[1]))
-	if err := txnkv.PutI(key, &value); err != nil {
+
+	value := []byte(c.args[1])
+	if err := txnkv.Put(key, value); err != nil {
 		fmt.Printf("put error , error=%v\n", err)
 	}
+
+	fmt.Println("put succeed")
 
 	return nil
 }
@@ -125,8 +128,7 @@ func getCmd(c *cmd) error {
 
 	key := genKey(c.args[0])
 
-	var value proto.Key
-	if found, _, err := txnkv.GetI(key, &value); err != nil && found {
+	if found, value, _, err := txnkv.Get(key); err != nil && found {
 		if !found {
 			fmt.Printf("given key is not found\n")
 			return nil
