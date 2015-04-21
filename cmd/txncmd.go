@@ -152,8 +152,7 @@ func endtransaction(txnkv *client.KV, commit bool) (error, reply proto.Response)
 }
 
 func commitCmd(c *cmd) error {
-	//for test
-	fmt.Printf("commit command: %v\n", c)
+
 
 	if err := checkTxnExist(); err != nil {
 		fmt.Printf("%v\n", err)
