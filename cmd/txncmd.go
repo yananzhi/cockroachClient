@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"net/http"
+
 	"os"
 	"strings"
 
 	"github.com/cockroachdb/cockroach/client"
 	"github.com/cockroachdb/cockroach/proto"
-	"github.com/cockroachdb/cockroach/rpc"
+
 	"github.com/cockroachdb/cockroach/storage/engine"
 
 	"code.google.com/p/go-commander"
@@ -38,6 +38,7 @@ var cmdDict = map[string]func(c *cmd) error{
 	"P": putCmd,
 	"G": getCmd,
 	"C": commitCmd,
+	"R": rollbackCmd,
 }
 
 //current httpsender
@@ -50,14 +51,17 @@ var txnkv *client.KV
 var txnsender *TxnSender
 
 func InitHttpSender(addr string) *client.HTTPSender {
-	return client.NewHTTPSender(addr, &http.Transport{
-		TLSClientConfig: rpc.LoadInsecureTLSConfig().Config(),
-	})
+
+	fmt.Printf("connect addr=%v\n", addr)
+	if sender, err := client.NewHTTPSender(addr, ""); err == nil {
+		return sender
+	} else {
+		fmt.Printf("InitHttpSender error=%v", err)
+		return nil
+	}
 }
 
 func startCmd(c *cmd) error {
-	//for test
-	//	fmt.Printf("startcmd: %v\n", c)
 
 	fmt.Println("start a transaction")
 
@@ -69,9 +73,9 @@ func startCmd(c *cmd) error {
 	txnsender = newTxnSender(kv.Sender(), &client.TransactionOptions{
 		Name:      "kv txn",
 		Isolation: proto.SERIALIZABLE, //todo use input argment to set the isolation level
+		//todo: use input argment to set to transaction name
 	})
 
-	//	txnkv = client.NewKV(txnsender, nil)
 	txnkv = client.NewKV(nil, txnsender)
 	txnkv.User = kv.User
 	txnkv.UserPriority = kv.UserPriority
@@ -105,7 +109,8 @@ func putCmd(c *cmd) error {
 	key := genKey(c.args[0])
 
 	value := []byte(c.args[1])
-	if err := txnkv.Put(key, value); err != nil {
+
+	if err := txnkv.Run(client.PutCall(key, value)); err != nil {
 		fmt.Printf("put error , error=%v\n", err)
 	}
 
@@ -128,23 +133,42 @@ func getCmd(c *cmd) error {
 
 	key := genKey(c.args[0])
 
-	if found, value, _, err := txnkv.Get(key); err != nil && found {
-		if !found {
-			fmt.Printf("given key is not found\n")
-			return nil
-		}
-		fmt.Printf("get error , error=%v\n", err)
+	call := client.GetCall(key)
+	gr := call.Reply.(*proto.GetResponse)
+
+	err := txnkv.Run(call)
+	if err == nil {
+
+		fmt.Printf("key=%v, value=%v\n", key, resToString(gr))
 	} else {
-		fmt.Printf("key=%v, value=%v\n", key, string(value))
+		fmt.Printf("get error , error=%v\n", err)
 	}
 
 	return nil
 }
 
-func endtransaction(txnkv *client.KV, commit bool) (error, reply proto.Response) {
+func resToString(res *proto.GetResponse) string {
+
+	if res.Value != nil {
+		if res.Value.Bytes != nil {
+			return string(res.Value.Bytes)
+		} else {
+			fmt.Printf("res.value.bytes == nil\n")
+			return "nil"
+		}
+	} else {
+		fmt.Printf("res.value == nil\n")
+		return "nil"
+	}
+
+}
+
+func endTransaction(txnkv *client.KV, commit bool) (error, reply proto.Response) {
 	etArgs := &proto.EndTransactionRequest{Commit: commit}
 	etReply := &proto.EndTransactionResponse{}
-	if err := txnkv.Call(proto.EndTransaction, etArgs, etReply); err != nil {
+
+	call := client.Call{Args: etArgs, Reply: etReply}
+	if err := txnkv.Run(call); err != nil {
 		fmt.Printf("commit transaction reuqest error:%v", err)
 	}
 	return nil, etReply
@@ -152,7 +176,6 @@ func endtransaction(txnkv *client.KV, commit bool) (error, reply proto.Response)
 }
 
 func commitCmd(c *cmd) error {
-
 
 	if err := checkTxnExist(); err != nil {
 		fmt.Printf("%v\n", err)
@@ -164,7 +187,7 @@ func commitCmd(c *cmd) error {
 		return nil
 	}
 
-	if err, reply := endtransaction(txnkv, true); err != nil {
+	if err, reply := endTransaction(txnkv, true); err != nil {
 		fmt.Printf("commit transaction fail: error=%v", err)
 		return nil
 
@@ -173,7 +196,7 @@ func commitCmd(c *cmd) error {
 			fmt.Printf("commit transaction fail: error=%v", reply.Header().Error)
 			fmt.Println("will auto rollback transaction")
 
-			if err, reply := endtransaction(txnkv, false); err != nil || reply.Header().Error != nil {
+			if err, reply := endTransaction(txnkv, false); err != nil || reply.Header().Error != nil {
 				fmt.Printf("rollback transaction fail: error=%v, reply.error=%v", err, reply.Header().Error)
 				return nil
 			}
@@ -182,6 +205,37 @@ func commitCmd(c *cmd) error {
 
 		} else {
 			fmt.Println("commit transaction succeed")
+		}
+	}
+
+	txnkv = nil
+
+	return nil
+}
+
+// rollback the transaction
+func rollbackCmd(c *cmd) error {
+
+	if err := checkTxnExist(); err != nil {
+		fmt.Printf("%v\n", err)
+		return nil
+	}
+
+	if len(c.args) != 0 {
+		fmt.Printf("argments error, args=%v\n", c.args)
+		return nil
+	}
+
+	if err, reply := endTransaction(txnkv, false); err != nil {
+		fmt.Printf("rollback transaction fail: error=%v", err)
+		return nil
+
+	} else {
+		if reply.Header().Error != nil {
+			fmt.Printf("rollback transaction fail: error=%v", reply.Header().Error)
+
+		} else {
+			fmt.Println("rollback transaction succeed")
 		}
 	}
 

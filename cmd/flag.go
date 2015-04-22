@@ -13,6 +13,6 @@ type Context struct {
 // settable here.
 func InitFlags(ctx *Context) {
 
-	flag.StringVar(&ctx.HTTP, "http", "localhost:8080", "host:port to bind for HTTP traffic; 0 to pick unused port")
+	flag.StringVar(&ctx.HTTP, "http", "127.0.0.1:8080", "host:port to bind for HTTP traffic; 0 to pick unused port")
 
 }
