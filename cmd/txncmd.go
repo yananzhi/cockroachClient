@@ -11,8 +11,6 @@ import (
 	"github.com/cockroachdb/cockroach/client"
 	"github.com/cockroachdb/cockroach/proto"
 
-	"github.com/cockroachdb/cockroach/storage/engine"
-
 	"code.google.com/p/go-commander"
 )
 
@@ -61,18 +59,42 @@ func InitHttpSender(addr string) *client.HTTPSender {
 	}
 }
 
+// startCmd start a transaction, has two parameter,  isolationtype: ssi si , default is si
+// transactionName:
 func startCmd(c *cmd) error {
-
-	fmt.Println("start a transaction")
 
 	if txnkv != nil {
 		fmt.Printf("already in transaction, txn=%v", txnkv.Sender())
 		return nil
 	}
 
+	//default name
+	txnName := "testtxn"
+	isolation := proto.SNAPSHOT
+
+	fmt.Printf("len c.args = %v\n", len(c.args))
+	if len(c.args) >= 1 {
+		iso := c.args[0]
+		fmt.Println("iso=", iso)
+		if strings.EqualFold(iso, "ssi") {
+			fmt.Println("ssi")
+			isolation = proto.SERIALIZABLE
+		} else if strings.EqualFold(iso, "si") {
+			fmt.Println("si")
+			//do nothing
+		} else {
+			return fmt.Errorf("error transaction isolation type, must be si or ssi, input is %v", iso)
+		}
+
+		if len(c.args) == 2 {
+			txnName = c.args[1]
+		}
+
+	}
+	fmt.Printf("start a transaction, isolation=%v , tansactionName=%v\n", isolation, txnName)
 	txnsender = newTxnSender(kv.Sender(), &client.TransactionOptions{
-		Name:      "kv txn",
-		Isolation: proto.SERIALIZABLE, //todo use input argment to set the isolation level
+		Name:      txnName,
+		Isolation: isolation, //todo use input argment to set the isolation level
 		//todo: use input argment to set to transaction name
 	})
 
@@ -91,7 +113,7 @@ func checkTxnExist() error {
 }
 
 func genKey(userkey string) proto.Key {
-	return engine.MakeKey(proto.Key([]byte("~")), proto.Key([]byte(userkey)))
+	return proto.Key([]byte(userkey))
 }
 
 func putCmd(c *cmd) error {
