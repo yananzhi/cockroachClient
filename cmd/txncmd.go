@@ -215,7 +215,7 @@ func commitCmd(c *cmd) error {
 
 	} else {
 		if reply.Header().Error != nil {
-			fmt.Printf("commit transaction fail: error=%v", reply.Header().Error)
+			fmt.Printf("commit transaction fail: error=%v\n", reply.Header().Error)
 			fmt.Println("will auto rollback transaction")
 
 			if err, reply := endTransaction(txnkv, false); err != nil || reply.Header().Error != nil {
