@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cockroachdb/cockroach/base"
 	"github.com/cockroachdb/cockroach/client"
 	"github.com/cockroachdb/cockroach/proto"
 
@@ -48,10 +49,18 @@ var txnkv *client.KV
 
 var txnsender *TxnSender
 
+// NewTestBaseContext creates a base context for testing.
+// The certs file loader is overriden in individual main_test files.
+func NewBaseContext() *base.Context {
+	return &base.Context{
+		Certs: "/home/zyn/gopath/src/github.com/cockroachdb/cockroach/certs",
+	}
+}
+
 func InitHttpSender(addr string) *client.HTTPSender {
 
 	fmt.Printf("connect addr=%v\n", addr)
-	if sender, err := client.NewHTTPSender(addr, ""); err == nil {
+	if sender, err := client.NewHTTPSender(addr, NewBaseContext()); err == nil {
 		return sender
 	} else {
 		fmt.Printf("InitHttpSender error=%v", err)
@@ -64,7 +73,7 @@ func InitHttpSender(addr string) *client.HTTPSender {
 func startCmd(c *cmd) error {
 
 	if txnkv != nil {
-		fmt.Printf("already in transaction, txn=%v", txnkv.Sender())
+		fmt.Printf("already in transaction, txn=%v", txnkv.Sender)
 		return nil
 	}
 
@@ -92,7 +101,7 @@ func startCmd(c *cmd) error {
 
 	}
 	fmt.Printf("start a transaction, isolation=%v , tansactionName=%v\n", isolation, txnName)
-	txnsender = newTxnSender(kv.Sender(), &client.TransactionOptions{
+	txnsender = newTxnSender(kv.Sender, &client.TransactionOptions{
 		Name:      txnName,
 		Isolation: isolation, //todo use input argment to set the isolation level
 		//todo: use input argment to set to transaction name
@@ -132,7 +141,7 @@ func putCmd(c *cmd) error {
 
 	value := []byte(c.args[1])
 
-	if err := txnkv.Run(client.PutCall(key, value)); err != nil {
+	if err := txnkv.Run(client.Put(key, value)); err != nil {
 		fmt.Printf("put error , error=%v\n", err)
 	}
 
@@ -155,7 +164,7 @@ func getCmd(c *cmd) error {
 
 	key := genKey(c.args[0])
 
-	call := client.GetCall(key)
+	call := client.Get(key)
 	gr := call.Reply.(*proto.GetResponse)
 
 	err := txnkv.Run(call)
@@ -284,9 +293,9 @@ func initCmd(str string) (*cmd, error) {
 func runTxnKV(cmd *commander.Command, args []string) {
 	fmt.Printf("txn kv client:\n")
 
-	context := &Context{}
-	InitFlags(context)
-	httpsender := InitHttpSender(context.HTTP)
+	//context := &Context{}
+	//	InitFlags(context)
+	httpsender := InitHttpSender(*httpAddr)
 	//	kv = client.NewKV(httpsender, nil)
 	kv = client.NewKV(nil, httpsender)
 	kv.User = "root"
