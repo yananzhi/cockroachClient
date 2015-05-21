@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"bufio"
-	"net/url"
+	"log"
 
 	"fmt"
 
@@ -12,24 +12,13 @@ import (
 	"github.com/cockroachdb/cockroach/base"
 	"github.com/cockroachdb/cockroach/client"
 	"github.com/cockroachdb/cockroach/proto"
-	"github.com/cockroachdb/cockroach/server/cli"
-	"github.com/cockroachdb/cockroach/util"
+
 	"github.com/spf13/cobra"
 )
 
-//// A CmdInit command initializes a new Cockroach cluster.
-//var CmdTxn = &commander.Command{
-//	UsageLine: "txn",
-//	Short:     "init a transactional cli",
-//	Long: `use a transactional kv client
-//`,
-//	Run:  runTxnKV,
-//	Flag: *flag.CommandLine,
-//}
-
-// An initCmd command initializes a new Cockroach cluster.
+// CmdTxn start to run a transactional kv cli interface
 var CmdTxn = &cobra.Command{
-	Use:   "txn --stores=...",
+	Use:   "txn  --addr=localhost:8080",
 	Short: "new a txn client",
 	Long: `
 new a transactional kv client
@@ -49,76 +38,16 @@ var cmdDict = map[string]func(c *cmd) error{
 	"S": startCmd,
 	"P": putCmd,
 	"G": getCmd,
+	"D": deleteCmd,
 	"C": commitCmd,
 	"R": rollbackCmd,
 }
-var osExit = os.Exit
-var osStderr = os.Stderr
 
-func makeDBClient() *client.DB {
-	// TODO(pmattis): Initialize the user to something more
-	// reasonable. Perhaps Context.Addr should be considered a URL.
-	db, err := client.Open(cli.Context.RequestScheme() +
-		"://root@" + util.EnsureHost(cli.Context.Addr) +
-		"?certs=" + cli.Context.Certs)
-	if err != nil {
-		fmt.Fprintf(osStderr, "failed to initialize KV client: %s", err)
-		osExit(1)
-	}
-	return db
-
-}
-
-//current httpsender
-//var httpsender client.HTTPSender
-
+// global http kv
 var kv *client.KV
 
+// transactio kv, each new transaction will update it
 var txnkv *Txn
-
-//var defaultTxnOpts = client.TransactionOptions{}
-
-//func newTxn(kv *client.KV, opts *client.TransactionOptions) *client.Txn {
-//	if opts == nil {
-//		opts = &defaultTxnOpts
-//	}
-
-//	t := &client.Txn{
-//		kv:      *kv,
-//		wrapped: kv.Sender,
-//		txn: proto.Transaction{
-//			Name:      opts.Name,
-//			Isolation: opts.Isolation,
-//		},
-//	}
-//	t.txnSender.Txn = t
-//	t.kv.Sender = &t.txnSender
-//	if opts != &defaultTxnOpts {
-//		t.kv.UserPriority = opts.UserPriority
-//	}
-//	return t
-//}
-//func newTxn(kv *client.KV, opts *client.TransactionOptions) *client.Txn {
-//	if opts == nil {
-//		opts = &defaultTxnOpts
-//	}
-//	t := &client.Txn{
-//		kv:      *kv,
-//		wrapped: kv.Sender,
-//		txn: proto.Transaction{
-//			Name:      opts.Name,
-//			Isolation: opts.Isolation,
-//		},
-//	}
-//	t.txnSender.Txn = t
-//	t.kv.Sender = &t.txnSender
-//	if opts != &defaultTxnOpts {
-//		t.kv.UserPriority = opts.UserPriority
-//	}
-//	return t
-//}
-
-//var txnsender *TxnSender
 
 // NewTestBaseContext creates a base context for testing.
 // The certs file loader is overriden in individual main_test files.
@@ -127,17 +56,6 @@ func NewBaseContext() *base.Context {
 		Certs: "/home/zyn/gopath/src/github.com/cockroachdb/cockroach/certs",
 	}
 }
-
-//func InitHttpSender(addr string) *client.HTTPSender {
-
-//	fmt.Printf("connect addr=%v\n", addr)
-//	if sender, err := client.NewHTTPSender(addr, NewBaseContext()); err == nil {
-//		return sender
-//	} else {
-//		fmt.Printf("InitHttpSender error=%v", err)
-//		return nil
-//	}
-//}
 
 // startCmd start a transaction, has two parameter,  isolationtype: ssi si , default is si
 // transactionName:
@@ -172,20 +90,12 @@ func startCmd(c *cmd) error {
 
 	}
 	fmt.Printf("start a transaction, isolation=%v , tansactionName=%v\n", isolation, txnName)
-	//	txnsender = newTxnSender(kv.Sender, &client.TransactionOptions{
-	//		Name:      txnName,
-	//		Isolation: isolation, //todo use input argment to set the isolation level
-	//		//todo: use input argment to set to transaction name
-	//	})
+
 	txnkv = newTxn(kv, &client.TransactionOptions{
 		Name:      txnName,
 		Isolation: isolation, //todo use input argment to set the isolation level
 		//todo: use input argment to set to transaction name
 	})
-
-	//	txnkv = client.NewKV(nil, txn.txnSender)
-	//	txnkv.User = kv.User
-	//	txnkv.UserPriority = kv.UserPriority
 
 	return nil
 }
@@ -222,6 +132,33 @@ func putCmd(c *cmd) error {
 	}
 
 	fmt.Println("put succeed")
+
+	return nil
+}
+
+func deleteCmd(c *cmd) error {
+
+	if err := checkTxnExist(); err != nil {
+		fmt.Printf("%v\n", err)
+		return nil
+	}
+
+	if len(c.args) != 1 {
+		fmt.Printf("error get args, args=%v\n", c.args)
+		return nil
+	}
+
+	key := genKey(c.args[0])
+
+	call := client.Delete(key)
+
+	err := txnkv.Run(call)
+	if err == nil {
+
+		fmt.Printf("delete key=%v succeed\n", key)
+	} else {
+		fmt.Printf("get error , error=%v\n", err)
+	}
 
 	return nil
 }
@@ -366,50 +303,16 @@ func initCmd(str string) (*cmd, error) {
 	return c, nil
 }
 
-//func runTxnKV(cmd *commander.Command, args []string) {
-
 func runTxnKV(cmd *cobra.Command, args []string) {
 	fmt.Printf("txn kv client:\n")
 
-	//	//context := &Context{}
-	//	//	InitFlags(context)
-	//	httpsender := InitHttpSender(*httpAddr)
-	//	//	kv = client.NewKV(httpsender, nil)
-	//	//	kv = client.NewKV(nil, httpsender)
-
-	//	//	db := makeDBClient()
-
-	//	kv.User = "root"
-	//	kv.UserPriority = -1
-
-	// don't user certs, so cockroah start with insucure=true
-	//	urlString := cli.Context.RequestScheme() +
-	//		"://root@" + util.EnsureHost(cli.Context.Addr)
-
-	urlString := cli.Context.RequestScheme() +
-		"://root@" + util.EnsureHost(cli.Context.Addr) +
-		"?certs=" + cli.Context.Certs
-
-	u, err := url.Parse(urlString)
-	ctx := &base.Context{}
-	ctx.InitDefaults()
-	ctx.Insecure = false
-	httpsender, err := client.NewHTTPSender(u.Host, ctx)
-
-	kv = client.NewKV(nil, httpsender)
-	kv.User = u.User.Username()
-
-	if err != nil {
-		fmt.Errorf("NewHTTPSender error=%v", err)
+	if httpKV, err := GetHttpKV(); err == nil {
+		kv = httpKV
+	} else {
+		log.Fatalf("GetHttpKV err, %v", err)
 	}
 
-	fmt.Printf("init http sender ok! httpsender=%v", httpsender)
-
-	if err != nil {
-		fmt.Printf("url error, error=%v", err)
-		return
-	}
-
+	// for loop read console input command and execute it
 	for {
 		reader := bufio.NewReader(os.Stdin)
 		strBytes, _, err := reader.ReadLine()

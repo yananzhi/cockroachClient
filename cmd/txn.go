@@ -15,6 +15,8 @@
 //
 // Author: Peter Mattis (peter.mattis@gmail.com)
 
+// zyn: it is a copy of  /cockroach/client/txn.go
+// since is unexported, we copy this file to this project.
 package cmd
 
 import (
@@ -85,6 +87,7 @@ func newTxn(kv *client.KV, opts *client.TransactionOptions) *Txn {
 	return t
 }
 
+// exec it is a API for retry transaction.
 func (t *Txn) exec(retryable func(txn *Txn) error) error {
 	// Run retryable in a retry loop until we encounter a success or
 	// error condition this loop isn't capable of handling.
