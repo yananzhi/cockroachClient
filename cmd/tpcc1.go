@@ -42,6 +42,7 @@ package cmd
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/cockroach/client"
@@ -66,11 +67,24 @@ const (
 	// it must great than orderIDKey
 	initOrderID = 200
 	// go routine number for run txn1
-	txn1Parellel = 10
+	txn1Parellel = 2
 
 	// go routine number for run txn2
-	txn2Parellel = 10
+	txn2Parellel = 0
 )
+
+// txnNumAll generate unique txnNumber
+type txnNumAll struct {
+	sync.RWMutex
+	num int64
+}
+
+func (t *txnNumAll) allcateNum() int64 {
+	t.Lock()
+	defer t.Unlock()
+	t.num++
+	return t.num
+}
 
 func runTpcc(cmd *cobra.Command, args []string) {
 	fmt.Println("run Tpcc ")
@@ -85,8 +99,12 @@ func runTpcc(cmd *cobra.Command, args []string) {
 		panic("init the orderID error")
 	}
 
+	allocate := &txnNumAll{
+		num: 200,
+	}
+
 	for i := 0; i < txn1Parellel; i++ {
-		go txn1Task(kv)
+		go txn1Task(kv, int64(i+1), allocate)
 	}
 
 	for i := 0; i < txn2Parellel; i++ {
@@ -116,10 +134,11 @@ func runTpcc(cmd *cobra.Command, args []string) {
 //delete(keyOrder)
 //put(keyOrder, orderID)
 //commit transaction
-func transaction1(kv *client.KV) {
+func transaction1(kv *client.KV, routineID int64, txnID int64) {
 	txn := newTxn(kv, &client.TransactionOptions{
-		Name:      "transaction1",
-		Isolation: proto.SNAPSHOT, // use snapshot isolation
+		Name: "transaction1" + fmt.Sprintf(":%v.%v", routineID, txnID),
+		//		Isolation: proto.SNAPSHOT, // use snapshot isolation
+		Isolation: proto.SERIALIZABLE, // use SERIALIZABLE isolation to debug
 	})
 	commit := false
 
@@ -162,6 +181,7 @@ func transaction1(kv *client.KV) {
 	if _, exist, err := GetInit64(orderID, txn); err != nil {
 		return
 	} else if exist {
+		fmt.Printf("routineID=%v ,  txnNumber=%v", routineID, txnID)
 		fmt.Printf("orderid=%v\n", orderID)
 		panic("it should not exist")
 	}
@@ -173,11 +193,11 @@ func transaction1(kv *client.KV) {
 
 	// update the orderID++
 	orderID++
-	if err = DeleteInt64(orderIDKey, txn); err != nil {
-		fmt.Printf("delete orderIDKey err: %v\n", err)
-		return
+	//	if err = DeleteInt64(orderIDKey, txn); err != nil {
+	//		fmt.Printf("delete orderIDKey err: %v\n", err)
+	//		return
 
-	}
+	//	}
 	if err = PutInt64(orderIDKey, orderID, txn); err != nil {
 		fmt.Printf("put orderIDKey err: %v\n", err)
 		return
@@ -205,9 +225,9 @@ func transaction2(kv *client.KV) {
 
 }
 
-func txn1Task(kv *client.KV) {
+func txn1Task(kv *client.KV, routineID int64, numAll *txnNumAll) {
 	for {
-		transaction1(kv)
+		transaction1(kv, routineID, numAll.allcateNum())
 	}
 
 }

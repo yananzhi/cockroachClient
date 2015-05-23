@@ -70,7 +70,7 @@ func GetInit64(key int64, kv Runnable) (value int64, exist bool, err error) {
 
 // DeleteInt64 delete a int64 key, is a key is not exist, delete is return with no error.
 func DeleteInt64(key int64, kv Runnable) error {
-	return kv.Run(client.Delete(proto.Key(proto.Key([]byte(strconv.FormatInt(Base, Base))))))
+	return kv.Run(client.Delete(proto.Key(proto.Key([]byte(strconv.FormatInt(key, Base))))))
 }
 
 // EndTransaction commit or rollback a transaction.
