@@ -24,6 +24,7 @@ import (
 
 	"github.com/cockroachdb/cockroach/server"
 	"github.com/cockroachdb/cockroach/server/cli"
+	"github.com/spf13/cobra"
 )
 
 // pflagValue wraps flag.Value and implements the extra methods of the
@@ -132,35 +133,43 @@ func initFlags(ctx *server.Context) {
 		pf.Var(pflagValue{f.Value}, normalizeStdFlagName(f.Name), f.Usage)
 	})
 
-	if f := CmdTxn.Flags(); true {
-		// Server flags.
-		// zyn: the txn command only need the addr flag
+	clientCmds := []*cobra.Command{CmdTxn, CmdTpcc}
+	for _, cmd := range clientCmds {
+		f := cmd.PersistentFlags()
 		f.StringVar(&ctx.Addr, "addr", ctx.Addr, flagUsage["addr"])
-		//		f.StringVar(&ctx.Attrs, "attrs", ctx.Attrs, flagUsage["attrs"])
-		//		f.StringVar(&ctx.Stores, "stores", ctx.Stores, flagUsage["stores"])
-		//		f.DurationVar(&ctx.MaxOffset, "max-offset", ctx.MaxOffset, flagUsage["max-offset"])
-		//		f.DurationVar(&ctx.MetricsFrequency, "metrics-frequency", ctx.MetricsFrequency,
-		//			flagUsage["metrics-frequency"])
-
-		//		// Security flags.
-		//		f.StringVar(&ctx.Certs, "certs", ctx.Certs, flagUsage["certs"])
-		//		f.BoolVar(&ctx.Insecure, "insecure", ctx.Insecure, flagUsage["insecure"])
-
-		//		// Gossip flags.
-		//		f.StringVar(&ctx.GossipBootstrap, "gossip", ctx.GossipBootstrap, flagUsage["gossip"])
-		//		f.DurationVar(&ctx.GossipInterval, "gossip-interval", ctx.GossipInterval,
-		//			flagUsage["gossip-interval"])
-
-		//		// KV flags.
-		//		f.BoolVar(&ctx.Linearizable, "linearizable", ctx.Linearizable, flagUsage["linearizable"])
-
-		//		// Engine flags.
-		//		f.Int64Var(&ctx.CacheSize, "cache-size", ctx.CacheSize, flagUsage["cache-size"])
-		//		f.DurationVar(&ctx.ScanInterval, "scan-interval", ctx.ScanInterval, flagUsage["scan-interval"])
-
-		//		CmdTxn.MarkFlagRequired("gossip")
-		//		CmdTxn.MarkFlagRequired("stores")
+		f.BoolVar(&ctx.Insecure, "insecure", ctx.Insecure, flagUsage["insecure"])
+		f.StringVar(&ctx.Certs, "certs", ctx.Certs, flagUsage["certs"])
 	}
+
+	//	if f := CmdTxn.Flags(); true {
+	//		// Server flags.
+	//		// zyn: the txn command only need the addr flag
+	//		f.StringVar(&ctx.Addr, "addr", ctx.Addr, flagUsage["addr"])
+	//		//		f.StringVar(&ctx.Attrs, "attrs", ctx.Attrs, flagUsage["attrs"])
+	//		//		f.StringVar(&ctx.Stores, "stores", ctx.Stores, flagUsage["stores"])
+	//		//		f.DurationVar(&ctx.MaxOffset, "max-offset", ctx.MaxOffset, flagUsage["max-offset"])
+	//		//		f.DurationVar(&ctx.MetricsFrequency, "metrics-frequency", ctx.MetricsFrequency,
+	//		//			flagUsage["metrics-frequency"])
+
+	//		//		// Security flags.
+	//		//		f.StringVar(&ctx.Certs, "certs", ctx.Certs, flagUsage["certs"])
+	//		//		f.BoolVar(&ctx.Insecure, "insecure", ctx.Insecure, flagUsage["insecure"])
+
+	//		//		// Gossip flags.
+	//		//		f.StringVar(&ctx.GossipBootstrap, "gossip", ctx.GossipBootstrap, flagUsage["gossip"])
+	//		//		f.DurationVar(&ctx.GossipInterval, "gossip-interval", ctx.GossipInterval,
+	//		//			flagUsage["gossip-interval"])
+
+	//		//		// KV flags.
+	//		//		f.BoolVar(&ctx.Linearizable, "linearizable", ctx.Linearizable, flagUsage["linearizable"])
+
+	//		//		// Engine flags.
+	//		//		f.Int64Var(&ctx.CacheSize, "cache-size", ctx.CacheSize, flagUsage["cache-size"])
+	//		//		f.DurationVar(&ctx.ScanInterval, "scan-interval", ctx.ScanInterval, flagUsage["scan-interval"])
+
+	//		//		CmdTxn.MarkFlagRequired("gossip")
+	//		//		CmdTxn.MarkFlagRequired("stores")
+	//	}
 
 }
 

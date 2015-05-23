@@ -28,12 +28,13 @@ func init() {
 }
 
 var cockroachCmd = &cobra.Command{
-	Use: "cockroach",
+	Use: "cli",
 }
 
 func init() {
 	cockroachCmd.AddCommand(
 		CmdTxn,
+		CmdTpcc,
 	)
 
 	// The default cobra usage and help templates have some

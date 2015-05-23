@@ -1,7 +1,7 @@
 # cockroachClient
 
 
-##start a session with transaction kv cli
+## start a session with transaction kv cli
 ./cli txn --addr=localhost:8080
 
 s [isolation]  [transactionName]
@@ -16,3 +16,8 @@ r
 rollback the txn
 d [key]
 delete the give key/value with given key
+
+
+
+## run a tpcc test 
+./cli tpcc --addr=localhost:8080

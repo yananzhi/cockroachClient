@@ -93,8 +93,7 @@ func startCmd(c *cmd) error {
 
 	txnkv = newTxn(kv, &client.TransactionOptions{
 		Name:      txnName,
-		Isolation: isolation, //todo use input argment to set the isolation level
-		//todo: use input argment to set to transaction name
+		Isolation: isolation,
 	})
 
 	return nil
@@ -191,6 +190,7 @@ func getCmd(c *cmd) error {
 	return nil
 }
 
+// if the key not exist,  res.Value == nil
 func resToString(res *proto.GetResponse) string {
 
 	if res.Value != nil {
@@ -201,21 +201,9 @@ func resToString(res *proto.GetResponse) string {
 			return "nil"
 		}
 	} else {
-		fmt.Printf("res.value == nil\n")
+
 		return "nil"
 	}
-
-}
-
-func endTransaction(txnkv *Txn, commit bool) (error, reply proto.Response) {
-	etArgs := &proto.EndTransactionRequest{Commit: commit}
-	etReply := &proto.EndTransactionResponse{}
-
-	call := client.Call{Args: etArgs, Reply: etReply}
-	if err := txnkv.Run(call); err != nil {
-		fmt.Printf("commit transaction reuqest error:%v", err)
-	}
-	return nil, etReply
 
 }
 
@@ -231,7 +219,7 @@ func commitCmd(c *cmd) error {
 		return nil
 	}
 
-	if err, reply := endTransaction(txnkv, true); err != nil {
+	if err, reply := EndTransaction(txnkv, true); err != nil {
 		fmt.Printf("commit transaction fail: error=%v", err)
 		return nil
 
@@ -240,7 +228,7 @@ func commitCmd(c *cmd) error {
 			fmt.Printf("commit transaction fail: error=%v\n", reply.Header().Error)
 			fmt.Println("will auto rollback transaction")
 
-			if err, reply := endTransaction(txnkv, false); err != nil || reply.Header().Error != nil {
+			if err, reply := EndTransaction(txnkv, false); err != nil || reply.Header().Error != nil {
 				fmt.Printf("rollback transaction fail: error=%v, reply.error=%v", err, reply.Header().Error)
 				return nil
 			}
@@ -270,7 +258,7 @@ func rollbackCmd(c *cmd) error {
 		return nil
 	}
 
-	if err, reply := endTransaction(txnkv, false); err != nil {
+	if err, reply := EndTransaction(txnkv, false); err != nil {
 		fmt.Printf("rollback transaction fail: error=%v", err)
 		return nil
 
