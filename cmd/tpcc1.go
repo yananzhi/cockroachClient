@@ -1,5 +1,5 @@
 /*
-simulate a tpcc test
+simulate a tpcc test, it should be ssi isolation,
 there has two tables: table1, table2
 table1 if for generator a unique orderID
 table1
@@ -89,10 +89,7 @@ func (t *txnNumAll) allcateNum() int64 {
 func runTpcc(cmd *cobra.Command, args []string) {
 	fmt.Println("run Tpcc ")
 
-	kv, err := GetHttpKV()
-	if err != nil {
-		fmt.Printf("GetHttpKV error = %v", err)
-	}
+	kv := GetHttpKV()
 
 	// Init the orderID
 	if err := PutInt64(orderIDKey, initOrderID, kv); err != nil {
@@ -116,18 +113,6 @@ func runTpcc(cmd *cobra.Command, args []string) {
 	<-time.After(time.Second * 60)
 
 }
-
-//orderID = get(keyOrder)
-//if orderid = nil{
-//	// init the order id
-//	put(keyOrder, 1)
-//	commit transaction
-//	return
-//}
-
-//if get(orderID) != nil{
-//	fatal("txn error, it should be nil")
-//}
 
 //put(orderID, xxMoney)
 //orderID++

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"net/url"
 	"strconv"
 
@@ -11,8 +12,8 @@ import (
 	"github.com/cockroachdb/cockroach/util"
 )
 
-// GetHttpKV return a client.KV wrap a httpSender
-func GetHttpKV() (*client.KV, error) {
+// GetHttpKV return a client.KV wrap a httpSender, if a error happen, panic directly
+func GetHttpKV() *client.KV {
 
 	urlString := cli.Context.RequestScheme() +
 		"://root@" + util.EnsureHost(cli.Context.Addr) +
@@ -20,17 +21,20 @@ func GetHttpKV() (*client.KV, error) {
 
 	u, err := url.Parse(urlString)
 	if err != nil {
-		return nil, err
+		panic(fmt.Sprintf("parse url error, url=%v, err=%v", urlString, err))
 	}
 	ctx := &base.Context{}
 	ctx.InitDefaults()
 	ctx.Insecure = false
 	httpsender, err := client.NewHTTPSender(u.Host, ctx)
+	if err != nil {
+		panic(fmt.Sprintf("NewHTTPSender error, host:=%v, ctx=%+v", u.Host, ctx))
+	}
 
-	kv = client.NewKV(nil, httpsender)
+	kv := client.NewKV(nil, httpsender)
 	kv.User = u.User.Username()
 
-	return kv, nil
+	return kv
 
 }
 

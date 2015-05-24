@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bufio"
-	"log"
 
 	"fmt"
 
@@ -34,7 +33,7 @@ type cmd struct {
 
 // cmdDict maps from command name to function implementing the command.
 // Use only upper case letters for commands. More than one letter is OK.
-var cmdDict = map[string]func(c *cmd) error{
+var cmdDict = map[string]func(c *cmd, s *Session) error{
 	"S": startCmd,
 	"P": putCmd,
 	"G": getCmd,
@@ -42,12 +41,6 @@ var cmdDict = map[string]func(c *cmd) error{
 	"C": commitCmd,
 	"R": rollbackCmd,
 }
-
-// global http kv
-var kv *client.KV
-
-// transactio kv, each new transaction will update it
-var txnkv *Txn
 
 // NewTestBaseContext creates a base context for testing.
 // The certs file loader is overriden in individual main_test files.
@@ -59,10 +52,10 @@ func NewBaseContext() *base.Context {
 
 // startCmd start a transaction, has two parameter,  isolationtype: ssi si , default is si
 // transactionName:
-func startCmd(c *cmd) error {
+func startCmd(c *cmd, s *Session) error {
 
-	if txnkv != nil {
-		fmt.Printf("already in transaction, txn=%v", txnkv)
+	if s.TxnKV != nil {
+		fmt.Printf("already in transaction, txn=%v", s.TxnKV)
 		return nil
 	}
 
@@ -91,7 +84,7 @@ func startCmd(c *cmd) error {
 	}
 	fmt.Printf("start a transaction, isolation=%v , tansactionName=%v\n", isolation, txnName)
 
-	txnkv = newTxn(kv, &client.TransactionOptions{
+	s.TxnKV = newTxn(s.HttpKV, &client.TransactionOptions{
 		Name:      txnName,
 		Isolation: isolation,
 	})
@@ -99,8 +92,8 @@ func startCmd(c *cmd) error {
 	return nil
 }
 
-func checkTxnExist() error {
-	if txnkv == nil {
+func checkTxnExist(s *Session) error {
+	if s.TxnKV == nil {
 		return fmt.Errorf("txn not exist error")
 	}
 	return nil
@@ -110,9 +103,9 @@ func genKey(userkey string) proto.Key {
 	return proto.Key([]byte(userkey))
 }
 
-func putCmd(c *cmd) error {
+func putCmd(c *cmd, s *Session) error {
 
-	if err := checkTxnExist(); err != nil {
+	if err := checkTxnExist(s); err != nil {
 		fmt.Printf("%v", err)
 		return nil
 	}
@@ -126,7 +119,7 @@ func putCmd(c *cmd) error {
 
 	value := []byte(c.args[1])
 
-	if err := txnkv.Run(client.Put(key, value)); err != nil {
+	if err := s.TxnKV.Run(client.Put(key, value)); err != nil {
 		fmt.Printf("put error , error=%v\n", err)
 	}
 
@@ -135,9 +128,9 @@ func putCmd(c *cmd) error {
 	return nil
 }
 
-func deleteCmd(c *cmd) error {
+func deleteCmd(c *cmd, s *Session) error {
 
-	if err := checkTxnExist(); err != nil {
+	if err := checkTxnExist(s); err != nil {
 		fmt.Printf("%v\n", err)
 		return nil
 	}
@@ -151,7 +144,7 @@ func deleteCmd(c *cmd) error {
 
 	call := client.Delete(key)
 
-	err := txnkv.Run(call)
+	err := s.TxnKV.Run(call)
 	if err == nil {
 
 		fmt.Printf("delete key=%v succeed\n", key)
@@ -162,9 +155,9 @@ func deleteCmd(c *cmd) error {
 	return nil
 }
 
-func getCmd(c *cmd) error {
+func getCmd(c *cmd, s *Session) error {
 
-	if err := checkTxnExist(); err != nil {
+	if err := checkTxnExist(s); err != nil {
 		fmt.Printf("%v\n", err)
 		return nil
 	}
@@ -179,7 +172,7 @@ func getCmd(c *cmd) error {
 	call := client.Get(key)
 	gr := call.Reply.(*proto.GetResponse)
 
-	err := txnkv.Run(call)
+	err := s.TxnKV.Run(call)
 	if err == nil {
 
 		fmt.Printf("key=%v, value=%v\n", key, resToString(gr))
@@ -207,9 +200,9 @@ func resToString(res *proto.GetResponse) string {
 
 }
 
-func commitCmd(c *cmd) error {
+func commitCmd(c *cmd, s *Session) error {
 
-	if err := checkTxnExist(); err != nil {
+	if err := checkTxnExist(s); err != nil {
 		fmt.Printf("%v\n", err)
 		return nil
 	}
@@ -219,7 +212,7 @@ func commitCmd(c *cmd) error {
 		return nil
 	}
 
-	if err, reply := EndTransaction(txnkv, true); err != nil {
+	if err, reply := EndTransaction(s.TxnKV, true); err != nil {
 		fmt.Printf("commit transaction fail: error=%v", err)
 		return nil
 
@@ -228,7 +221,7 @@ func commitCmd(c *cmd) error {
 			fmt.Printf("commit transaction fail: error=%v\n", reply.Header().Error)
 			fmt.Println("will auto rollback transaction")
 
-			if err, reply := EndTransaction(txnkv, false); err != nil || reply.Header().Error != nil {
+			if err, reply := EndTransaction(s.TxnKV, false); err != nil || reply.Header().Error != nil {
 				fmt.Printf("rollback transaction fail: error=%v, reply.error=%v", err, reply.Header().Error)
 				return nil
 			}
@@ -240,15 +233,15 @@ func commitCmd(c *cmd) error {
 		}
 	}
 
-	txnkv = nil
+	s.TxnKV = nil
 
 	return nil
 }
 
 // rollback the transaction
-func rollbackCmd(c *cmd) error {
+func rollbackCmd(c *cmd, s *Session) error {
 
-	if err := checkTxnExist(); err != nil {
+	if err := checkTxnExist(s); err != nil {
 		fmt.Printf("%v\n", err)
 		return nil
 	}
@@ -258,7 +251,7 @@ func rollbackCmd(c *cmd) error {
 		return nil
 	}
 
-	if err, reply := EndTransaction(txnkv, false); err != nil {
+	if err, reply := EndTransaction(s.TxnKV, false); err != nil {
 		fmt.Printf("rollback transaction fail: error=%v", err)
 		return nil
 
@@ -271,7 +264,7 @@ func rollbackCmd(c *cmd) error {
 		}
 	}
 
-	txnkv = nil
+	s.TxnKV = nil
 
 	return nil
 }
@@ -294,13 +287,9 @@ func initCmd(str string) (*cmd, error) {
 func runTxnKV(cmd *cobra.Command, args []string) {
 	fmt.Printf("txn kv client:\n")
 
-	if httpKV, err := GetHttpKV(); err == nil {
-		kv = httpKV
-	} else {
-		log.Fatalf("GetHttpKV err, %v", err)
-	}
+	s := NewSession()
 
-	// for loop read console input command and execute it
+	//  for loop read console input command and execute it
 	for {
 		reader := bufio.NewReader(os.Stdin)
 		strBytes, _, err := reader.ReadLine()
@@ -314,7 +303,7 @@ func runTxnKV(cmd *cobra.Command, args []string) {
 
 			if c, err := initCmd(string(strBytes)); err == nil {
 				if fn, exist := cmdDict[c.name]; exist {
-					fn(c)
+					fn(c, s)
 				} else {
 					fmt.Printf("cmd %v not exist\n", c)
 				}
