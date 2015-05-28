@@ -22,8 +22,7 @@ package cmd
 import (
 	"github.com/cockroachdb/cockroach/client"
 	"github.com/cockroachdb/cockroach/proto"
-	"github.com/cockroachdb/cockroach/util"
-	"github.com/cockroachdb/cockroach/util/log"
+
 	"golang.org/x/net/context"
 )
 
@@ -88,7 +87,7 @@ func newTxn(kv *client.KV, opts *client.TransactionOptions) *Txn {
 }
 
 // exec it is a API for retry transaction.
-func (t *Txn) exec(retryable func(txn *Txn) error) error {
+/*unc (t *Txn) exec(retryable func(txn *Txn) error) error {
 	// Run retryable in a retry loop until we encounter a success or
 	// error condition this loop isn't capable of handling.
 	retryOpts := t.kv.TxnRetryOptions
@@ -130,7 +129,7 @@ func (t *Txn) exec(retryable func(txn *Txn) error) error {
 		return err
 	}
 	return err
-}
+}*/
 
 // Run runs the specified calls synchronously in a single batch and
 // returns any errors.
